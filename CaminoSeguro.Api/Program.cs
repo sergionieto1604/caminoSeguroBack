@@ -4,6 +4,7 @@ using CaminoSeguro.Api.Data;
 using CaminoSeguro.Api.Models;
 using CaminoSeguro.Api.Services;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Microsoft.AspNetCore.HttpOverrides;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
@@ -105,7 +106,19 @@ builder.Services.AddSwaggerGen(c =>
     c.AddSecurityRequirement(new OpenApiSecurityRequirement { { esquema, Array.Empty<string>() } });
 });
 
+// Detrás de nginx: usar la IP real del cliente (X-Forwarded-For) para el rate limiting.
+// Es seguro porque la API no publica puertos: solo nginx puede hablarle.
+builder.Services.Configure<ForwardedHeadersOptions>(o =>
+{
+    o.ForwardedHeaders = ForwardedHeaders.XForwardedFor | ForwardedHeaders.XForwardedProto;
+    o.KnownNetworks.Clear();
+    o.KnownProxies.Clear();
+});
+
 var app = builder.Build();
+
+// Debe ir primero: corrige la IP y el esquema antes de cualquier otro middleware.
+app.UseForwardedHeaders();
 
 // ---------- Base de datos: crea tablas y semilla si no existen ----------
 using (var scope = app.Services.CreateScope())
